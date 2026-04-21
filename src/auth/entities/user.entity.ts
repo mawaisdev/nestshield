@@ -29,6 +29,9 @@ export class User {
   @Column({ default: false })
   isTwoFactorEnabled: boolean;
 
+  @Column({ default: true })
+  isActive: boolean;
+
   @ManyToMany(() => Role, (role) => role.users, { eager: true })
   @JoinTable({
     name: 'user_roles',
