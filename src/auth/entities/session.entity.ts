@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  RelationId,
 } from 'typeorm';
 import { User } from './user.entity';
 
@@ -16,10 +17,10 @@ export class Session {
   @ManyToOne(() => User, (user) => user.sessions, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: 'userId ' })
+  @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column()
+  @RelationId((session: Session) => session.user)
   userId: string;
 
   @Column({ select: false })
