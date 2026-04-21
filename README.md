@@ -83,3 +83,9 @@ Status: In progress — building in public.
     -
     - TypeScript type definitions for the above libraries. These packages were written in plain JavaScript so TypeScript doesn't know their shapes without these. Only needed during development — not in production.
     - Used for: TypeScript autocomplete, type checking, no runtime impact
+
+- NestJS
+  -
+  - @nestjs/config
+    -
+    - NestJS needs this to read .env files
