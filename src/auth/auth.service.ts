@@ -68,6 +68,7 @@ export class AuthService {
   async login(dto: LoginDto, ipAddress?: string) {
     const user = await this.userRepository.findOne({
       where: { email: dto.email },
+      relations: ['roles'],
     });
 
     if (!user) throw new UnauthorizedException('Invalid Credentials');
@@ -83,21 +84,21 @@ export class AuthService {
       if (!dto.totpCode) {
         throw new UnauthorizedException('2FA Code is required');
       }
-
       const isValid = await this.verifyTwoFactorCode(user.id, dto.totpCode);
       if (!isValid) throw new UnauthorizedException('Invalid 2FA Code');
-
-      const activeSession = await this.sessionRepository.count({
-        where: { userId: user.id, isActive: true },
-      });
-
-      if (activeSession >= this.MAX_SESSIONS)
-        throw new ForbiddenException(
-          `Maximum active session ${this.MAX_SESSIONS} reached - Please logout from other devices first.`,
-        );
-
-      return this.createSession(user, dto.deviceInfo, ipAddress);
     }
+
+    const activeSession = await this.sessionRepository.count({
+      where: { user: { id: user.id }, isActive: true },
+    });
+
+    if (activeSession >= this.MAX_SESSIONS) {
+      throw new ForbiddenException(
+        `Maximum active sessions (${this.MAX_SESSIONS}) reached — please logout from another device first`,
+      );
+    }
+
+    return this.createSession(user, dto.deviceInfo, ipAddress);
   }
 
   private async createSession(
@@ -118,7 +119,7 @@ export class AuthService {
     );
 
     const session = this.sessionRepository.create({
-      userId: user.id,
+      user: { id: user.id },
       refreshTokenHash,
       deviceInfo,
       ipAddress,

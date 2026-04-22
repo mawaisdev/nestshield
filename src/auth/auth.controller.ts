@@ -1,14 +1,14 @@
 import {
-  Body,
   Controller,
+  Post,
+  Body,
+  Req,
   HttpCode,
   HttpStatus,
-  Post,
-  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
-import type { Request } from 'express';
 import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
@@ -24,6 +24,6 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.authService.login(dto, req.ip);
+    return this.authService.login(dto, req.ip ?? undefined);
   }
 }
