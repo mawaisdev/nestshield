@@ -1,7 +1,9 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
@@ -13,6 +15,8 @@ import { ConfigService } from '@nestjs/config';
 import { RegisterDto } from './dto/register.dto';
 
 import * as bcrypt from 'bcrypt';
+import { LoginDto } from './dto/login.dto';
+import { TOTP } from 'otplib';
 
 @Injectable()
 export class AuthService {
@@ -59,6 +63,41 @@ export class AuthService {
     await this.userRepository.save(user);
 
     return this.createSession(user, dto.deviceInfo, ipAddress);
+  }
+
+  async login(dto: LoginDto, ipAddress?: string) {
+    const user = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+
+    if (!user) throw new UnauthorizedException('Invalid Credentials');
+
+    if (!user.isActive) throw new ForbiddenException('Account is disabled');
+
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+
+    if (!isPasswordValid)
+      throw new UnauthorizedException('Invalid Credentials');
+
+    if (user.isTwoFactorEnabled) {
+      if (!dto.totpCode) {
+        throw new UnauthorizedException('2FA Code is required');
+      }
+
+      const isValid = await this.verifyTwoFactorCode(user.id, dto.totpCode);
+      if (!isValid) throw new UnauthorizedException('Invalid 2FA Code');
+
+      const activeSession = await this.sessionRepository.count({
+        where: { userId: user.id, isActive: true },
+      });
+
+      if (activeSession >= this.MAX_SESSIONS)
+        throw new ForbiddenException(
+          `Maximum active session ${this.MAX_SESSIONS} reached - Please logout from other devices first.`,
+        );
+
+      return this.createSession(user, dto.deviceInfo, ipAddress);
+    }
   }
 
   private async createSession(
@@ -108,6 +147,24 @@ export class AuthService {
         isTwoFactorEnabled: user.isTwoFactorEnabled,
       },
     };
+  }
+
+  private async verifyTwoFactorCode(
+    userId: string,
+    code: string,
+  ): Promise<boolean> {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.twoFactorSecret')
+      .where('user.id = :id', { id: userId })
+      .getOne();
+
+    if (!user?.twoFactorSecret) {
+      return false;
+    }
+    const totp = new TOTP();
+    const result = await totp.verify(code, { secret: user.twoFactorSecret });
+    return result as unknown as boolean;
   }
 
   private generateSecureToken(): string {
